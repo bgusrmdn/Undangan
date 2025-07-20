@@ -27,6 +27,7 @@ class User extends Authenticatable
         'avatar',
         'wallet_balance',
         'is_active',
+        'premium_until',
     ];
 
     /**
@@ -51,6 +52,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'wallet_balance' => 'decimal:2',
             'is_active' => 'boolean',
+            'premium_until' => 'datetime',
         ];
     }
 
@@ -63,6 +65,23 @@ class User extends Authenticatable
     public function isCustomer()
     {
         return $this->role === 'customer';
+    }
+
+    public function isPremium()
+    {
+        return $this->premium_until && $this->premium_until->isFuture();
+    }
+
+    public function hasActivePremium()
+    {
+        return $this->isPremium();
+    }
+
+    public function upgradeToPremium($duration = 365)
+    {
+        $this->update([
+            'premium_until' => now()->addDays($duration)
+        ]);
     }
 
     // Relationships

@@ -10,6 +10,20 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
+| Subdomain Routes (Invitation Subdomains)
+|--------------------------------------------------------------------------
+*/
+
+Route::domain('{subdomain}.'.config('app.domain', 'localhost'))->group(function () {
+    Route::get('/', [InvitationController::class, 'showBySubdomain'])->name('invitation.subdomain');
+    Route::post('/rsvp', [InvitationController::class, 'rsvpBySubdomain'])->name('invitation.subdomain.rsvp');
+    Route::post('/guest-book', [InvitationController::class, 'guestBookBySubdomain'])->name('invitation.subdomain.guest-book');
+    Route::get('/gallery', [InvitationController::class, 'galleryBySubdomain'])->name('invitation.subdomain.gallery');
+    Route::get('/download-calendar', [InvitationController::class, 'downloadCalendarBySubdomain'])->name('invitation.subdomain.calendar');
+});
+
+/*
+|--------------------------------------------------------------------------
 | Public Routes
 |--------------------------------------------------------------------------
 */
@@ -61,10 +75,15 @@ Route::get('/templates', [TemplateController::class, 'index'])->name('templates.
 Route::get('/templates/{template}', [TemplateController::class, 'show'])->name('templates.show');
 Route::get('/templates/{template}/preview', [TemplateController::class, 'preview'])->name('templates.preview');
 
-// Public Invitations
+// Public Invitations (Path-based)
 Route::get('/invitation/{slug}', [InvitationController::class, 'publicShow'])->name('invitation.show');
 Route::post('/invitation/{slug}/rsvp', [InvitationController::class, 'rsvp'])->name('invitation.rsvp');
 Route::post('/invitation/{slug}/guest-book', [InvitationController::class, 'guestBook'])->name('invitation.guest-book');
+Route::get('/invitation/{slug}/gallery', [InvitationController::class, 'gallery'])->name('invitation.gallery');
+Route::get('/invitation/{slug}/download-calendar', [InvitationController::class, 'downloadCalendar'])->name('invitation.calendar');
+
+// QR Code for invitations
+Route::get('/qr/{slug}', [InvitationController::class, 'qrRedirect'])->name('invitation.qr');
 
 /*
 |--------------------------------------------------------------------------
@@ -94,6 +113,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/invitations/{invitation}/publish', [InvitationController::class, 'publish'])->name('invitations.publish');
     Route::post('/invitations/{invitation}/duplicate', [InvitationController::class, 'duplicate'])->name('invitations.duplicate');
     
+    // Domain Management for Invitations
+    Route::post('/invitations/{invitation}/enable-subdomain', [InvitationController::class, 'enableSubdomain'])->name('invitations.enable-subdomain');
+    Route::post('/invitations/{invitation}/disable-subdomain', [InvitationController::class, 'disableSubdomain'])->name('invitations.disable-subdomain');
+    Route::post('/invitations/{invitation}/set-custom-domain', [InvitationController::class, 'setCustomDomain'])->name('invitations.set-custom-domain');
+    Route::delete('/invitations/{invitation}/remove-custom-domain', [InvitationController::class, 'removeCustomDomain'])->name('invitations.remove-custom-domain');
+    
     // Template Purchase
     Route::post('/templates/{template}/purchase', [TemplateController::class, 'purchase'])->name('templates.purchase');
     Route::get('/templates/{template}/checkout', [TemplateController::class, 'checkout'])->name('templates.checkout');
@@ -112,9 +137,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/payments/{payment}/success', [PaymentController::class, 'success'])->name('payments.success');
     Route::get('/payments/{payment}/failed', [PaymentController::class, 'failed'])->name('payments.failed');
     
-    // Payment Webhooks (should be excluded from CSRF)
-    Route::post('/webhooks/payment/{gateway}', [PaymentController::class, 'webhook'])->name('payments.webhook');
+    // Premium Upgrade
+    Route::get('/upgrade-premium', [ProfileController::class, 'upgradePremium'])->name('upgrade-premium');
+    Route::post('/process-premium-upgrade', [ProfileController::class, 'processPremiumUpgrade'])->name('process-premium-upgrade');
 });
+
+// Payment Webhooks (excluded from CSRF protection)
+Route::post('/webhooks/payment/{gateway}', [PaymentController::class, 'webhook'])->name('payments.webhook');
 
 /*
 |--------------------------------------------------------------------------
@@ -149,6 +178,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         return view('admin.users.show');
     })->name('users.show');
     
+    Route::post('/users/{user}/toggle-premium', [ProfileController::class, 'togglePremium'])->name('users.toggle-premium');
+    
     // Order Management
     Route::get('/orders', [OrderController::class, 'adminIndex'])->name('orders.index');
     Route::get('/orders/{order}', [OrderController::class, 'adminShow'])->name('orders.show');
@@ -159,6 +190,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/custom-requests/{customRequest}', [CustomRequestController::class, 'adminShow'])->name('custom-requests.show');
     Route::patch('/custom-requests/{customRequest}/assign', [CustomRequestController::class, 'assign'])->name('custom-requests.assign');
     Route::patch('/custom-requests/{customRequest}/status', [CustomRequestController::class, 'updateStatus'])->name('custom-requests.update-status');
+    
+    // Domain Management
+    Route::get('/domains', [InvitationController::class, 'adminDomains'])->name('domains.index');
+    Route::post('/domains/{invitation}/approve-custom', [InvitationController::class, 'approveCustomDomain'])->name('domains.approve-custom');
+    Route::post('/domains/{invitation}/reject-custom', [InvitationController::class, 'rejectCustomDomain'])->name('domains.reject-custom');
     
     // Analytics & Reports
     Route::get('/analytics', function () {
@@ -198,6 +234,10 @@ Route::middleware(['auth'])->prefix('api')->name('api.')->group(function () {
     Route::post('/invitations/{invitation}/guests', [InvitationController::class, 'addGuest'])->name('invitations.add-guest');
     Route::delete('/invitations/{invitation}/guests/{guest}', [InvitationController::class, 'removeGuest'])->name('invitations.remove-guest');
     Route::post('/invitations/{invitation}/guests/import', [InvitationController::class, 'importGuests'])->name('invitations.import-guests');
+    
+    // Domain validation
+    Route::post('/validate-subdomain', [InvitationController::class, 'validateSubdomain'])->name('validate-subdomain');
+    Route::post('/validate-custom-domain', [InvitationController::class, 'validateCustomDomain'])->name('validate-custom-domain');
     
     // Analytics
     Route::get('/invitations/{invitation}/analytics', [InvitationController::class, 'analytics'])->name('invitations.analytics');
